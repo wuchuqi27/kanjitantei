@@ -1,0 +1,2845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>漢字探偵</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --white: #FAFAFA;
+  --ink: #1A1A1A;
+  --vermillion: #C53D43;
+  --emerald: #2D8B57;
+  --error: #C53D43;
+  --gray: #E0E0E0;
+  --gray-light: #F5F5F5;
+  --font: 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+}
+
+html { font-size: 20px; }
+
+body {
+  font-family: var(--font);
+  background: var(--white);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Background character */
+.bg-character {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 75vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  object-fit: contain;
+}
+body.result-screen .bg-character { opacity: 0.12; }
+
+/* Correct popup */
+.correct-popup {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(255,255,255,0.3);
+}
+.correct-popup.active {
+  animation: correct-popup-anim 1.5s ease forwards;
+}
+.correct-popup img {
+  height: 50vh;
+  max-height: 420px;
+  object-fit: contain;
+}
+@keyframes correct-popup-anim {
+  0% { opacity: 0; transform: scale(0.2); }
+  12% { opacity: 1; transform: scale(1.25); }
+  22% { opacity: 1; transform: scale(0.95); }
+  30% { opacity: 1; transform: scale(1); }
+  75% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
+/* Creator watermark */
+.watermark {
+  position: fixed;
+  bottom: 12px;
+  right: 16px;
+  font-size: 0.9rem;
+  color: rgba(0,0,0,0.12);
+  letter-spacing: 0.03rem;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 0;
+  user-select: none;
+}
+
+/* ===== Screens ===== */
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+.screen.active {
+  opacity: 1; pointer-events: auto;
+  z-index: 2;
+}
+
+/* ===== Home ===== */
+#home { gap: 2rem; padding: 2rem; }
+#home .title {
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--ink);
+  position: relative;
+}
+#home .title::after {
+  content: '';
+  display: block;
+  width: 60px; height: 2px;
+  background: var(--vermillion);
+  margin: 0.6rem auto 0;
+}
+#home .subtitle {
+  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+  color: #999;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  margin-bottom: 1rem;
+}
+/* Settings icon button */
+.settings-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 36px; height: 36px;
+  border: 1px solid var(--gray);
+  border-radius: 50%;
+  background: var(--white);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, transform 0.2s;
+  z-index: 10;
+}
+.settings-btn:hover {
+  border-color: var(--ink);
+  transform: rotate(30deg);
+}
+.settings-btn svg {
+  width: 18px; height: 18px;
+  fill: #888;
+  transition: fill 0.2s;
+}
+.settings-btn:hover svg { fill: var(--ink); }
+
+/* Settings popover */
+.settings-popover {
+  position: absolute;
+  top: 3.5rem;
+  right: 1.5rem;
+  background: var(--white);
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 20;
+}
+.settings-popover.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.settings-popover .popover-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #999;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.8rem;
+}
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.settings-item-label {
+  font-size: 0.85rem;
+  color: #555;
+}
+.settings-item-control {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--gray);
+  border-radius: 4px;
+  background: var(--white);
+}
+.settings-item-control input[type="number"] {
+  width: 48px;
+  border: none;
+  outline: none;
+  font-family: var(--font);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: transparent;
+  text-align: right;
+}
+.settings-item-control .unit {
+  font-size: 0.8rem;
+  color: #999;
+}
+.settings-item-control.toggle {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.settings-item-control input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Mode Cards */
+.mode-cards {
+  display: flex; gap: 1.5rem;
+  flex-wrap: wrap; justify-content: center;
+  padding: 0 1rem;
+}
+.mode-card {
+  width: clamp(200px, 40vw, 280px);
+  padding: 2.5rem 2rem;
+  border: 1px solid var(--gray);
+  border-radius: 4px;
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.mode-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+.mode-card .icon {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+.mode-card .card-title {
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+.mode-card .card-desc {
+  font-size: 0.78rem;
+  color: #999;
+  line-height: 1.6;
+  text-align: center;
+}
+.mode-card .card-hint {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--vermillion);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+.mode-card:hover .card-hint { transform: scaleX(1); }
+
+/* ===== Game Header ===== */
+.game-header {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: rgba(250,250,250,0.95);
+  border-bottom: 1px solid var(--gray);
+  z-index: 10;
+}
+.game-header .back-btn {
+  font-size: 0.85rem;
+  color: #999;
+  cursor: pointer;
+  background: none; border: none;
+  font-family: var(--font);
+  transition: color 0.2s;
+}
+.game-header .back-btn:hover { color: var(--ink); }
+
+/* Stats Bar */
+.stats-bar {
+  display: flex; gap: 1.5rem;
+  font-size: 0.82rem;
+  color: #888;
+}
+.stats-bar .stat {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+}
+.stats-bar .stat-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  transition: transform 0.3s;
+}
+.stats-bar .stat-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+/* Timer */
+.timer-bar {
+  position: absolute; top: 62px; left: 0; right: 0;
+  height: 3px;
+  background: var(--gray);
+  z-index: 9;
+}
+.timer-bar .timer-fill {
+  height: 100%;
+  background: var(--vermillion);
+  transition: width 0.1s linear;
+  width: 100%;
+}
+
+/* Level Badge */
+.level-badge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--gray);
+  border-radius: 3px;
+  color: #888;
+  letter-spacing: 0.05em;
+  transition: all 0.3s;
+}
+.level-badge.level-2 {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+/* ===== Grid Mode ===== */
+#grid-mode { padding-top: 80px; }
+
+.grid-container {
+  display: grid;
+  gap: 6px;
+  padding: 1rem;
+}
+.grid-cell {
+  width: clamp(56px, 14vw, 88px);
+  height: clamp(56px, 14vw, 88px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gray);
+  border-radius: 4px;
+  font-size: clamp(1.5rem, 5vw, 2.4rem);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+  background: var(--white);
+}
+.grid-cell::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 0.65rem;
+  color: #aaa;
+  pointer-events: none;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.grid-cell:hover {
+  border-color: #bbb;
+}
+.grid-cell.correct {
+  border-color: var(--emerald);
+  background: #E8F5E9;
+}
+.grid-cell.wrong {
+  border-color: var(--error);
+  background: #FFEBEE;
+}
+
+/* Grid cell animation on appear */
+@keyframes spring-in {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  80% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.grid-cell.animate-in {
+  animation: spring-in 0.4s ease forwards;
+  opacity: 0;
+}
+
+/* Correct ripple */
+@keyframes correct-ripple {
+  0% { box-shadow: 0 0 0 0 rgba(45,139,87,0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 0 12px rgba(45,139,87,0); transform: scale(1.12); }
+  100% { box-shadow: 0 0 0 0 rgba(45,139,87,0); transform: scale(1); }
+}
+.grid-cell.correct {
+  animation: correct-ripple 0.5s ease;
+}
+
+/* Wrong shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+.grid-cell.wrong {
+  animation: shake 0.4s ease;
+}
+
+/* ===== Sentence Mode ===== */
+#sentence-mode { padding-top: 80px; gap: 1rem; }
+
+.sentence-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0 1.5rem;
+  width: max-content;
+  max-width: calc(100vw - 3rem);
+}
+.sentence-item {
+  display: inline-block;
+  font-size: clamp(1rem, 3.5vw, 1.4rem);
+  line-height: 2.2;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--gray);
+  border-radius: 4px;
+  background: var(--white);
+  text-align: left;
+  white-space: nowrap;
+  overflow: visible;
+}
+.sentence-segment {
+  display: inline;
+  white-space: nowrap;
+}
+.sentence-char {
+  display: inline-block;
+  cursor: default;
+  padding: 0.05em 0;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s, color 0.2s;
+}
+.sentence-char.clickable {
+  cursor: pointer;
+}
+.sentence-char.clickable:hover {
+  border-bottom-color: var(--vermillion);
+  color: var(--vermillion);
+}
+.sentence-char.correct {
+  color: var(--emerald);
+  border-bottom-color: var(--emerald);
+  font-weight: 700;
+}
+.sentence-char.wrong-char {
+  color: var(--error);
+  border-bottom-color: var(--error);
+  animation: shake 0.3s ease;
+}
+
+/* Wavy underline for answer */
+@keyframes wavy-underline {
+  0% { text-decoration-color: var(--vermillion); }
+  50% { text-decoration-color: transparent; }
+  100% { text-decoration-color: var(--vermillion); }
+}
+.sentence-char.reveal {
+  color: var(--emerald);
+  font-weight: 700;
+  text-decoration: underline wavy var(--emerald);
+  animation: wavy-underline 0.8s ease 2;
+}
+
+/* ===== Result Screen ===== */
+#result { gap: 1.5rem; padding: 2rem; }
+#result .result-title {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+#result .result-title::after {
+  content: '';
+  display: block;
+  width: 40px; height: 2px;
+  background: var(--vermillion);
+  margin: 0.5rem auto 0;
+}
+.result-stats {
+  display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center;
+}
+.result-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+}
+.result-stat .rs-value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.result-stat .rs-label {
+  font-size: 0.78rem;
+  color: #999;
+}
+.result-stat .rs-value.emerald { color: var(--emerald); }
+.result-stat .rs-value.vermillion { color: var(--vermillion); }
+
+/* Score flying */
+@keyframes score-pop {
+  0% { transform: scale(0.5) translateY(0); opacity: 1; }
+  100% { transform: scale(1) translateY(-40px); opacity: 0; }
+}
+.flying-score {
+  position: fixed;
+  font-size: 1.3rem;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 100;
+  animation: score-pop 0.8s ease forwards;
+  font-family: var(--font);
+}
+.flying-score.plus { color: var(--emerald); }
+.flying-score.minus { color: var(--error); }
+
+/* Combo */
+@keyframes combo-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.combo-display {
+  position: fixed;
+  top: 80px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--vermillion);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+.combo-display.show {
+  animation: combo-pop 0.3s ease forwards;
+}
+
+/* Screen shake */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0); }
+  10% { transform: translate(-2px, 1px); }
+  30% { transform: translate(2px, -1px); }
+  50% { transform: translate(-1px, 2px); }
+  70% { transform: translate(1px, -2px); }
+  90% { transform: translate(-2px, 0); }
+}
+.screen.shake {
+  animation: screen-shake 0.3s ease;
+}
+
+/* Level up flash */
+@keyframes level-up-flash {
+  0% { opacity: 0; }
+  30% { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+.level-flash {
+  position: fixed; inset: 0;
+  background: white;
+  pointer-events: none;
+  z-index: 200;
+  opacity: 0;
+}
+.level-flash.active {
+  animation: level-up-flash 0.6s ease forwards;
+}
+
+/* Level up text */
+.level-up-text {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--vermillion);
+  pointer-events: none;
+  z-index: 201;
+  opacity: 0;
+  white-space: nowrap;
+}
+.level-up-text.active {
+  animation: level-up-text-anim 1.2s ease forwards;
+}
+@keyframes level-up-text-anim {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+  60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+}
+
+/* Buttons */
+.btn {
+  padding: 0.7rem 2rem;
+  border: 1px solid var(--gray);
+  border-radius: 4px;
+  background: var(--white);
+  font-family: var(--font);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  letter-spacing: 0.05em;
+}
+.btn:hover {
+  border-color: var(--ink);
+  background: var(--gray-light);
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--ink);
+}
+.btn-primary:hover {
+  background: #333;
+}
+
+/* Particle system */
+.particle {
+  position: fixed;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 150;
+}
+
+/* Round indicator */
+.round-indicator {
+  position: fixed;
+  bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  color: #bbb;
+  letter-spacing: 0.05em;
+  z-index: 10;
+}
+
+/* Timeout flash */
+@keyframes timeout-flash {
+  0%, 100% { background: var(--white); }
+  25% { background: #FFF0F0; }
+  75% { background: #FFF0F0; }
+}
+.screen.timeout {
+  animation: timeout-flash 0.5s ease 2;
+}
+
+/* Error teaching modal */
+.error-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300;
+  pointer-events: none;
+  opacity: 0;
+}
+.error-modal.open {
+  animation: modal-sequence 1s ease forwards;
+}
+@keyframes modal-sequence {
+  0% { opacity: 0; }
+  100% { opacity: 1; pointer-events: auto; }
+}
+
+/* Batsu character - pop then move to modal corner */
+.error-batsu-popup {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.15);
+  z-index: 400;
+  pointer-events: none;
+  opacity: 0;
+}
+.error-batsu-popup.open {
+  animation: batsu-sequence 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.error-batsu-popup img {
+  height: 38vh;
+  max-height: 300px;
+  object-fit: contain;
+}
+@keyframes batsu-sequence {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.15); top: 50%; left: 50%; }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); top: 50%; left: 50%; }
+  40% { transform: translate(-50%, -50%) scale(1); top: 50%; left: 50%; }
+  55% { opacity: 1; transform: translate(-50%, -50%) scale(0.7); top: 28%; left: 42%; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(0.7); top: 28%; left: 42%; }
+}
+
+/* Modal inner */
+.error-modal-inner {
+  background: var(--white);
+  border-radius: 8px;
+  padding: 1.8rem 2rem;
+  position: relative;
+  overflow: visible;
+  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 260px;
+  max-width: 90vw;
+  opacity: 0;
+}
+.error-modal.open .error-modal-inner {
+  animation: modal-fade-in 0.4s ease 0.55s forwards;
+}
+@keyframes modal-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.error-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--error);
+  letter-spacing: 0.08em;
+  position: relative;
+  z-index: 1;
+}
+.error-comparison {
+  display: flex; align-items: center; gap: 1.2rem;
+  position: relative;
+  z-index: 1;
+}
+.error-char-block {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  padding: 0.8rem 1.2rem;
+  border-radius: 6px;
+  border: 2px solid transparent;
+}
+.error-char-block.wrong-block {
+  background: #FFEBEE;
+  border-color: var(--error);
+}
+.error-char-block.correct-block {
+  background: #E8F5E9;
+  border-color: var(--emerald);
+}
+.error-char {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.wrong-block .error-char { color: var(--error); }
+.correct-block .error-char { color: var(--emerald); }
+.error-char-label {
+  font-size: 0.7rem;
+  color: #999;
+  letter-spacing: 0.05em;
+}
+.error-arrow {
+  font-size: 1.3rem;
+  color: #bbb;
+  font-weight: 300;
+}
+.error-note {
+  font-size: 0.8rem;
+  color: #777;
+  text-align: center;
+  line-height: 1.5;
+  max-width: 260px;
+  position: relative;
+  z-index: 1;
+}
+.error-next-btn {
+  margin-top: 0.3rem;
+  min-width: 160px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .game-header { padding: 0.7rem 1rem; }
+  .stats-bar { gap: 0.8rem; }
+  .stats-bar .stat-value { font-size: 1rem; }
+  .grid-container { gap: 4px; padding: 0.5rem; }
+  .sentence-block { padding: 0 0.8rem; }
+  .sentence-item { padding: 0.4rem 0.6rem; }
+
+  /* Error modal mobile */
+  .error-modal { padding: 1rem; }
+  .error-modal-inner {
+    min-width: 220px;
+    padding: 1.4rem 1.5rem;
+    gap: 0.8rem;
+  }
+  .error-comparison { gap: 0.8rem; }
+  .error-char-block { padding: 0.6rem 0.9rem; }
+  .error-char { font-size: 2rem; }
+  .error-arrow { font-size: 1rem; }
+  .error-note { font-size: 0.75rem; max-width: 200px; }
+
+  /* Batsu mobile */
+  .error-batsu-popup img {
+    height: 28vh;
+    max-height: 200px;
+  }
+  @keyframes batsu-sequence {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.15); top: 50%; left: 50%; }
+    25% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); top: 50%; left: 50%; }
+    40% { transform: translate(-50%, -50%) scale(1); top: 50%; left: 50%; }
+    55% { opacity: 1; transform: translate(-50%, -50%) scale(0.65); top: 30%; left: 24%; }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(0.65); top: 30%; left: 24%; }
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="watermark">snug presents</div>
+<img class="bg-character" src="images/banzai_kids_people.png" alt="">
+
+<!-- Home Screen -->
+<div id="home" class="screen active">
+  <button class="settings-btn" id="settings-btn" aria-label="设置">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 000-1.88l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.04 7.04 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58a7.07 7.07 0 000 1.88l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.3.59.22l2.39-.96c.49.37 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.23 0 .43-.17.48-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+  </button>
+  <div class="settings-popover" id="settings-popover">
+    <div class="popover-title">设置</div>
+    <div class="settings-list">
+      <div class="settings-item">
+        <span class="settings-item-label">每题时长</span>
+        <div class="settings-item-control">
+          <input id="round-time-input" type="number" min="5" max="120" step="1" value="15">
+          <span class="unit">s</span>
+        </div>
+      </div>
+      <div class="settings-item">
+        <span class="settings-item-label">音效</span>
+        <div class="settings-item-control toggle">
+          <input id="sound-toggle" type="checkbox" checked>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="title">漢字探偵</div>
+  <div class="subtitle">中日汉字找不同</div>
+  <div class="mode-cards">
+    <div class="mode-card" onclick="startGame('grid')">
+      <div class="icon">&#9638;</div>
+      <div class="card-title">方格找茬</div>
+      <div class="card-desc">在格子中找出日文汉字写法</div>
+      <div class="card-hint"></div>
+    </div>
+    <div class="mode-card" onclick="startGame('sentence')">
+      <div class="icon">&#128196;</div>
+      <div class="card-title">句子找茬</div>
+      <div class="card-desc">在日文句子中找出错字</div>
+      <div class="card-hint"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Grid Mode -->
+<div id="grid-mode" class="screen">
+  <div class="game-header">
+    <button class="back-btn" onclick="goHome()">&#8592; 戻る</button>
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-value" id="grid-score">0</div>
+        <div class="stat-label">得分</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="grid-combo">0</div>
+        <div class="stat-label">连击</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="grid-accuracy">0%</div>
+        <div class="stat-label">正确率</div>
+      </div>
+      <div class="stat">
+        <span class="level-badge" id="grid-level">Lv1</span>
+        <div class="stat-label">难度</div>
+      </div>
+    </div>
+  </div>
+  <div class="timer-bar"><div class="timer-fill" id="grid-timer"></div></div>
+  <div class="grid-container" id="grid-container"></div>
+  <div class="round-indicator" id="grid-round"></div>
+</div>
+
+<!-- Sentence Mode -->
+<div id="sentence-mode" class="screen">
+  <div class="game-header">
+    <button class="back-btn" onclick="goHome()">&#8592; 戻る</button>
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-value" id="sentence-score">0</div>
+        <div class="stat-label">得分</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="sentence-combo">0</div>
+        <div class="stat-label">连击</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="sentence-accuracy">0%</div>
+        <div class="stat-label">正确率</div>
+      </div>
+      <div class="stat">
+        <span class="level-badge" id="sentence-level">Lv1</span>
+        <div class="stat-label">难度</div>
+      </div>
+    </div>
+  </div>
+  <div class="timer-bar"><div class="timer-fill" id="sentence-timer"></div></div>
+  <div class="sentence-block" id="sentence-block"></div>
+  <div class="round-indicator" id="sentence-round"></div>
+</div>
+
+<!-- Result Screen -->
+<div id="result" class="screen">
+  <div class="result-title">結果発表</div>
+  <div class="result-stats">
+    <div class="result-stat">
+      <div class="rs-value emerald" id="result-score">0</div>
+      <div class="rs-label">最終得分</div>
+    </div>
+    <div class="result-stat">
+      <div class="rs-value" id="result-accuracy">0%</div>
+      <div class="rs-label">正确率</div>
+    </div>
+    <div class="result-stat">
+      <div class="rs-value vermillion" id="result-combo">0</div>
+      <div class="rs-label">最高连击</div>
+    </div>
+    <div class="result-stat">
+      <div class="rs-value" id="result-level">Lv1</div>
+      <div class="rs-label">最终难度</div>
+    </div>
+  </div>
+  <div style="display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center;">
+    <button class="btn btn-primary" onclick="restartGame()">再挑戦</button>
+    <button class="btn" onclick="goHome()">ホーム</button>
+  </div>
+</div>
+
+<!-- Error batsu popup -->
+<div class="error-batsu-popup" id="error-batsu-popup">
+  <img src="images/quiz_man_batsu.png" alt="">
+</div>
+
+<!-- Error teaching modal -->
+<div class="error-modal" id="error-modal">
+  <div class="error-modal-inner" id="error-modal-inner">
+    <div class="error-modal-title" id="error-modal-title">不正解</div>
+    <div class="error-comparison">
+      <div class="error-char-block wrong-block">
+        <div class="error-char" id="error-wrong-char"></div>
+        <div class="error-char-label">中国語</div>
+      </div>
+      <div class="error-arrow">→</div>
+      <div class="error-char-block correct-block">
+        <div class="error-char" id="error-correct-char"></div>
+        <div class="error-char-label">日本語</div>
+      </div>
+    </div>
+    <button class="btn btn-primary error-next-btn" onclick="dismissErrorModal()">次の問題へ</button>
+  </div>
+</div>
+<!-- Level flash overlay -->
+<div class="level-flash" id="level-flash"></div>
+<div class="level-up-text" id="level-up-text">レベルアップ！</div>
+<!-- Combo display -->
+<div class="combo-display" id="combo-display"></div>
+<!-- Correct popup -->
+<div class="correct-popup" id="correct-popup">
+  <img src="images/quiz_man_maru.png" alt="">
+</div>
+
+<script type="module">
+const data = {
+    "亚": "亜",
+    "爱": "愛",
+    "暧": "曖",
+    "恶": "悪",
+    "压": "圧",
+    "岚": "嵐",
+    "围": "囲",
+    "为": "為",
+    "异": "異",
+    "伟": "偉",
+    "汇": "彙",
+    "违": "違",
+    "维": "維",
+    "遗": "遺",
+    "纬": "緯",
+    "壹": "壱",
+    "员": "員",
+    "阴": "陰",
+    "饮": "飲",
+    "隐": "隠",
+    "韵": "韻",
+    "呗": "唄",
+    "郁": "鬱",
+    "亩": "畝",
+    "运": "運",
+    "云": "雲",
+    "荣": "栄",
+    "营": "営",
+    "咏": "詠",
+    "锐": "鋭",
+    "卫": "衛",
+    "驿": "駅",
+    "谒": "謁",
+    "阅": "閲",
+    "圆": "円",
+    "园": "園",
+    "烟": "煙",
+    "远": "遠",
+    "铅": "鉛",
+    "盐": "塩",
+    "缘": "縁",
+    "艳": "艶",
+    "污": "汚",
+    "应": "応",
+    "樱": "桜",
+    "亿": "億",
+    "忆": "憶",
+    "价": "価",
+    "华": "華",
+    "果": "菓",
+    "货": "貨",
+    "涡": "渦",
+    "过": "過",
+    "祸": "禍",
+    "个": "個",
+    "课": "課",
+    "贺": "賀",
+    "饿": "餓",
+    "绘": "絵",
+    "开": "開",
+    "阶": "階",
+    "块": "塊",
+    "溃": "潰",
+    "坏": "壊",
+    "怀": "懐",
+    "谐": "諧",
+    "贝": "貝",
+    "盖": "蓋",
+    "该": "該",
+    "扩": "拡",
+    "壳": "殻",
+    "觉": "覚",
+    "较": "較",
+    "阁": "閣",
+    "确": "確",
+    "获": "穫",
+    "吓": "嚇",
+    "乐": "楽",
+    "额": "額",
+    "颚": "顎",
+    "挂": "掛",
+    "泻": "潟",
+    "渴": "渇",
+    "辖": "轄",
+    "镰": "鎌",
+    "卷": "巻",
+    "陷": "陥",
+    "贯": "貫",
+    "唤": "喚",
+    "换": "換",
+    "间": "間",
+    "闲": "閑",
+    "劝": "勧",
+    "宽": "寛",
+    "干": "幹",
+    "汉": "漢",
+    "惯": "慣",
+    "关": "関",
+    "欢": "歓",
+    "监": "監",
+    "缓": "緩",
+    "还": "還",
+    "馆": "館",
+    "环": "環",
+    "简": "簡",
+    "观": "観",
+    "舰": "艦",
+    "鉴": "鑑",
+    "顽": "頑",
+    "颜": "顔",
+    "愿": "願",
+    "气": "気",
+    "纪": "紀",
+    "轨": "軌",
+    "记": "記",
+    "饥": "飢",
+    "归": "帰",
+    "规": "規",
+    "龟": "亀",
+    "几": "幾",
+    "挥": "揮",
+    "贵": "貴",
+    "弃": "棄",
+    "毁": "毀",
+    "辉": "輝",
+    "机": "機",
+    "骑": "騎",
+    "伪": "偽",
+    "义": "義",
+    "仪": "儀",
+    "戏": "戯",
+    "拟": "擬",
+    "牺": "犠",
+    "议": "議",
+    "吃": "喫",
+    "诘": "詰",
+    "级": "級",
+    "纠": "糾",
+    "宫": "宮",
+    "给": "給",
+    "穷": "窮",
+    "据": "拠",
+    "举": "挙",
+    "许": "許",
+    "鱼": "魚",
+    "渔": "漁",
+    "协": "協",
+    "况": "況",
+    "胁": "脅",
+    "强": "強",
+    "乡": "郷",
+    "桥": "橋",
+    "矫": "矯",
+    "镜": "鏡",
+    "竞": "競",
+    "响": "響",
+    "惊": "驚",
+    "晓": "暁",
+    "业": "業",
+    "极": "極",
+    "仅": "僅",
+    "紧": "緊",
+    "锦": "錦",
+    "谨": "謹",
+    "银": "銀",
+    "驱": "駆",
+    "缲": "繰",
+    "训": "訓",
+    "勋": "勲",
+    "熏": "薫",
+    "军": "軍",
+    "系": "係",
+    "计": "計",
+    "惠": "恵",
+    "启": "啓",
+    "揭": "掲",
+    "溪": "渓",
+    "经": "経",
+    "萤": "蛍",
+    "轻": "軽",
+    "倾": "傾",
+    "继": "継",
+    "诣": "詣",
+    "庆": "慶",
+    "鸡": "鶏",
+    "艺": "芸",
+    "鲸": "鯨",
+    "剧": "劇",
+    "击": "撃",
+    "杰": "傑",
+    "洁": "潔",
+    "决": "決",
+    "结": "結",
+    "见": "見",
+    "剑": "剣",
+    "轩": "軒",
+    "险": "険",
+    "圈": "圏",
+    "坚": "堅",
+    "检": "検",
+    "绢": "絹",
+    "权": "権",
+    "宪": "憲",
+    "贤": "賢",
+    "谦": "謙",
+    "键": "鍵",
+    "茧": "繭",
+    "显": "顕",
+    "验": "験",
+    "悬": "懸",
+    "现": "現",
+    "减": "減",
+    "严": "厳",
+    "户": "戸",
+    "库": "庫",
+    "夸": "誇",
+    "锢": "錮",
+    "顾": "顧",
+    "吴": "呉",
+    "后": "後",
+    "娱": "娯",
+    "棋": "碁",
+    "语": "語",
+    "误": "誤",
+    "护": "護",
+    "广": "広",
+    "效": "効",
+    "红": "紅",
+    "项": "項",
+    "沟": "溝",
+    "矿": "鉱",
+    "构": "構",
+    "纲": "綱",
+    "兴": "興",
+    "钢": "鋼",
+    "讲": "講",
+    "购": "購",
+    "刚": "剛",
+    "黑": "黒",
+    "谷": "穀",
+    "狱": "獄",
+    "驹": "駒",
+    "顷": "頃",
+    "查": "査",
+    "诈": "詐",
+    "锁": "鎖",
+    "灾": "災",
+    "碎": "砕",
+    "济": "済",
+    "斋": "斎",
+    "细": "細",
+    "采": "採",
+    "债": "債",
+    "岁": "歳",
+    "载": "載",
+    "际": "際",
+    "剂": "剤",
+    "财": "財",
+    "栅": "柵",
+    "册": "冊",
+    "杀": "殺",
+    "杂": "雑",
+    "栈": "桟",
+    "产": "産",
+    "伞": "傘",
+    "赞": "賛",
+    "斩": "斬",
+    "丝": "糸",
+    "姊": "姉",
+    "纸": "紙",
+    "视": "視",
+    "词": "詞",
+    "齿": "歯",
+    "试": "試",
+    "诗": "詩",
+    "资": "資",
+    "饲": "飼",
+    "志": "誌",
+    "咨": "諮",
+    "儿": "児",
+    "时": "時",
+    "识": "識",
+    "轴": "軸",
+    "执": "執",
+    "质": "質",
+    "实": "実",
+    "车": "車",
+    "舍": "捨",
+    "释": "釈",
+    "咒": "呪",
+    "树": "樹",
+    "收": "収",
+    "周": "週",
+    "众": "衆",
+    "习": "習",
+    "丑": "醜",
+    "袭": "襲",
+    "涩": "渋",
+    "铳": "銃",
+    "兽": "獣",
+    "纵": "縦",
+    "肃": "粛",
+    "缩": "縮",
+    "处": "処",
+    "书": "書",
+    "绪": "緒",
+    "诸": "諸",
+    "涉": "渉",
+    "绍": "紹",
+    "讼": "訟",
+    "胜": "勝",
+    "烧": "焼",
+    "妆": "粧",
+    "诏": "詔",
+    "证": "証",
+    "伤": "傷",
+    "奖": "奨",
+    "详": "詳",
+    "冲": "沖",
+    "赏": "賞",
+    "偿": "償",
+    "钟": "鐘",
+    "乘": "乗",
+    "净": "浄",
+    "剩": "剰",
+    "场": "場",
+    "叠": "畳",
+    "绳": "縄",
+    "壤": "壌",
+    "娘": "嬢",
+    "锭": "錠",
+    "让": "譲",
+    "酿": "醸",
+    "饰": "飾",
+    "织": "織",
+    "职": "職",
+    "绅": "紳",
+    "进": "進",
+    "诊": "診",
+    "审": "審",
+    "亲": "親",
+    "阵": "陣",
+    "寻": "尋",
+    "肾": "腎",
+    "须": "須",
+    "图": "図",
+    "帅": "帥",
+    "粹": "粋",
+    "髓": "髄",
+    "濑": "瀬",
+    "制": "製",
+    "齐": "斉",
+    "势": "勢",
+    "圣": "聖",
+    "诚": "誠",
+    "请": "請",
+    "只": "隻",
+    "责": "責",
+    "迹": "跡",
+    "积": "積",
+    "绩": "績",
+    "设": "設",
+    "摄": "摂",
+    "节": "節",
+    "说": "説",
+    "绝": "絶",
+    "专": "専",
+    "战": "戦",
+    "羡": "羨",
+    "钱": "銭",
+    "线": "線",
+    "迁": "遷",
+    "选": "選",
+    "荐": "薦",
+    "纤": "繊",
+    "鲜": "鮮",
+    "渐": "漸",
+    "缮": "繕",
+    "组": "組",
+    "疏": "疎",
+    "诉": "訴",
+    "础": "礎",
+    "庄": "荘",
+    "仓": "倉",
+    "搜": "捜",
+    "插": "挿",
+    "巢": "巣",
+    "扫": "掃",
+    "曾": "曽",
+    "窗": "窓",
+    "创": "創",
+    "丧": "喪",
+    "瘦": "痩",
+    "层": "層",
+    "总": "総",
+    "骚": "騒",
+    "增": "増",
+    "藏": "蔵",
+    "赠": "贈",
+    "脏": "臓",
+    "侧": "側",
+    "测": "測",
+    "续": "続",
+    "孙": "孫",
+    "损": "損",
+    "对": "対",
+    "带": "帯",
+    "态": "態",
+    "题": "題",
+    "泷": "滝",
+    "择": "択",
+    "泽": "沢",
+    "托": "託",
+    "诺": "諾",
+    "浊": "濁",
+    "达": "達",
+    "夺": "奪",
+    "谁": "誰",
+    "单": "単",
+    "叹": "嘆",
+    "绽": "綻",
+    "诞": "誕",
+    "锻": "鍛",
+    "团": "団",
+    "弹": "弾",
+    "谈": "談",
+    "坛": "壇",
+    "值": "値",
+    "耻": "恥",
+    "迟": "遅",
+    "致": "緻",
+    "筑": "築",
+    "铸": "鋳",
+    "驻": "駐",
+    "贮": "貯",
+    "厅": "庁",
+    "长": "長",
+    "帐": "帳",
+    "张": "張",
+    "雕": "彫",
+    "钓": "釣",
+    "顶": "頂",
+    "鸟": "鳥",
+    "贴": "貼",
+    "肠": "腸",
+    "调": "調",
+    "听": "聴",
+    "惩": "懲",
+    "沉": "沈",
+    "陈": "陳",
+    "赁": "賃",
+    "镇": "鎮",
+    "坠": "墜",
+    "冢": "塚",
+    "渍": "漬",
+    "鹤": "鶴",
+    "贞": "貞",
+    "订": "訂",
+    "递": "逓",
+    "侦": "偵",
+    "缔": "締",
+    "敌": "敵",
+    "铁": "鉄",
+    "彻": "徹",
+    "转": "転",
+    "传": "伝",
+    "电": "電",
+    "赌": "賭",
+    "涂": "塗",
+    "东": "東",
+    "岛": "島",
+    "讨": "討",
+    "栋": "棟",
+    "汤": "湯",
+    "稻": "稲",
+    "头": "頭",
+    "誊": "謄",
+    "斗": "闘",
+    "腾": "騰",
+    "动": "動",
+    "铜": "銅",
+    "导": "導",
+    "德": "徳",
+    "笃": "篤",
+    "读": "読",
+    "顿": "頓",
+    "贪": "貪",
+    "钝": "鈍",
+    "昙": "曇",
+    "软": "軟",
+    "难": "難",
+    "贰": "弐",
+    "认": "認",
+    "宁": "寧",
+    "热": "熱",
+    "恼": "悩",
+    "纳": "納",
+    "脑": "脳",
+    "农": "農",
+    "浓": "濃",
+    "霸": "覇",
+    "马": "馬",
+    "骂": "罵",
+    "拜": "拝",
+    "败": "敗",
+    "废": "廃",
+    "辈": "輩",
+    "卖": "売",
+    "买": "買",
+    "赔": "賠",
+    "缚": "縛",
+    "发": "髪",
+    "罚": "罰",
+    "阀": "閥",
+    "泛": "汎",
+    "贩": "販",
+    "饭": "飯",
+    "烦": "煩",
+    "颁": "頒",
+    "范": "範",
+    "盘": "盤",
+    "飞": "飛",
+    "费": "費",
+    "罢": "罷",
+    "备": "備",
+    "笔": "筆",
+    "姬": "姫",
+    "冰": "氷",
+    "评": "評",
+    "标": "標",
+    "滨": "浜",
+    "贫": "貧",
+    "宾": "賓",
+    "频": "頻",
+    "讣": "訃",
+    "负": "負",
+    "妇": "婦",
+    "肤": "膚",
+    "赋": "賦",
+    "谱": "譜",
+    "风": "風",
+    "复": "複",
+    "拂": "払",
+    "佛": "仏",
+    "纷": "紛",
+    "喷": "噴",
+    "坟": "墳",
+    "愤": "憤",
+    "奋": "奮",
+    "并": "併",
+    "闭": "閉",
+    "币": "幣",
+    "饼": "餅",
+    "别": "別",
+    "边": "辺",
+    "变": "変",
+    "编": "編",
+    "步": "歩",
+    "补": "補",
+    "铺": "舗",
+    "炮": "砲",
+    "访": "訪",
+    "报": "報",
+    "丰": "豊",
+    "饱": "飽",
+    "缝": "縫",
+    "纺": "紡",
+    "谋": "謀",
+    "仆": "僕",
+    "扑": "撲",
+    "每": "毎",
+    "满": "満",
+    "雾": "霧",
+    "梦": "夢",
+    "铭": "銘",
+    "鸣": "鳴",
+    "灭": "滅",
+    "绵": "綿",
+    "面": "麺",
+    "网": "網",
+    "默": "黙",
+    "门": "門",
+    "纹": "紋",
+    "问": "問",
+    "译": "訳",
+    "药": "薬",
+    "跃": "躍",
+    "暗": "闇",
+    "喻": "喩",
+    "谕": "諭",
+    "输": "輸",
+    "愈": "癒",
+    "邮": "郵",
+    "涌": "湧",
+    "犹": "猶",
+    "游": "遊",
+    "诱": "誘",
+    "忧": "憂",
+    "优": "優",
+    "预": "預",
+    "阳": "陽",
+    "样": "様",
+    "疡": "瘍",
+    "窑": "窯",
+    "养": "養",
+    "拥": "擁",
+    "谣": "謡",
+    "罗": "羅",
+    "赖": "頼",
+    "络": "絡",
+    "览": "覧",
+    "滥": "濫",
+    "蓝": "藍",
+    "栏": "欄",
+    "里": "裏",
+    "离": "離",
+    "陆": "陸",
+    "栗": "慄",
+    "龙": "竜",
+    "虏": "虜",
+    "虑": "慮",
+    "两": "両",
+    "凉": "涼",
+    "猎": "猟",
+    "领": "領",
+    "疗": "療",
+    "粮": "糧",
+    "绿": "緑",
+    "伦": "倫",
+    "轮": "輪",
+    "邻": "隣",
+    "临": "臨",
+    "琉": "瑠",
+    "泪": "涙",
+    "垒": "塁",
+    "类": "類",
+    "戾": "戻",
+    "铃": "鈴",
+    "灵": "霊",
+    "隶": "隷",
+    "龄": "齢",
+    "丽": "麗",
+    "历": "暦",
+    "连": "連",
+    "练": "練",
+    "炼": "錬",
+    "赂": "賂",
+    "劳": "労",
+    "录": "録",
+    "论": "論",
+    "话": "話",
+    "贿": "賄"
+}
+
+const sentences = {
+    "亚": "この地域の亚熱帯気候は非常に顕著である。",
+    "爱": "子供に対する親の爱は、何よりも深いものだ。",
+    "暧": "彼の暧昧な態度のせいで、交渉は進展しなかった。",
+    "恶": "恶天候のため、本日の屋外イベントは中止となった。",
+    "压": "試験が近づくにつれて、精神的な压力を感じる。",
+    "岚": "突然の岚に巻き込まれ、登山者は避難を余儀なくされた。",
+    "围": "工場の周围には立ち入り禁止の柵が設けられている。",
+    "为": "社会の平和の为に、我々は何ができるだろうか。",
+    "异": "この現象は、通常の物理法則では説明できない异常なものだ。",
+    "伟": "彼は科学の発展に多大な貢献をした伟大な人物だ。",
+    "汇": "語汇力を高めることは、言語学習において不可欠である。",
+    "违": "契約内容に违反した場合、罰金が科せられる。",
+    "维": "健康を维持するためには、バランスの取れた食事が大切だ。",
+    "遗": "今回の失敗は、非常に遗憾な結果と言わざるを得ない。",
+    "纬": "地球の纬度によって、気候や日照時間は大きく異なる。",
+    "壹": "金壹封を贈ることで、感謝の意を表した。",
+    "员": "会社の全职员を対象とした研修会が行われた。",
+    "阴": "今日の天気は阴り空で、今にも雨が降りそうだ。",
+    "饮": "食前酒の饮みすぎには十分に注意してください。",
+    "隐": "彼は自分の正体を隐して、敵の陣地に潜入した。",
+    "韵": "この詩は独特の韵律を持っており、非常に美しい。",
+    "呗": "祭りの夜、遠くから里呗が聞こえてきた。",
+    "郁": "都会の喧騒を離れ、郁蒼とした森の中を歩く。",
+    "亩": "彼は先祖から受け継いだ数亩の土地を守っている。",
+    "运": "物流システムの効率化により、运送コストが削減された。",
+    "云": "云海の上から見る日の出は、言葉にできないほど美しい。",
+    "荣": "優勝の荣誉を勝ち取った選手たちは、誇らしげだった。",
+    "营": "長年の経营不振により、その店は閉店に追い込まれた。",
+    "咏": "有名な歌人が咏んだ和歌が、石碑に刻まれている。",
+    "锐": "彼の锐い指摘によって、計画の問題点が浮き彫りになった。",
+    "卫": "公衆卫生を改善するために、新しい下水道が整備された。",
+    "驿": "古くからの宿驿町として栄えたこの場所は、今も風情がある。",
+    "谒": "国王への谒見を許された使者は、緊張した面持ちだった。",
+    "阅": "過去の文献を阅覧するために、国立図書館を訪れた。",
+    "圆": "円滑な人間関係を築くには、お互いの歩み寄りが圆満の秘訣だ。",
+    "园": "週末に家族と一緒に、近所の公园へピクニックに行った。",
+    "烟": "烟突から出る煙が、冬の空に白く立ち昇っている。",
+    "远": "远距離恋愛を続けてきた二人は、ついに結婚を決めた。",
+    "铅": "放射線を遮断するために、铅の板が使用されている。",
+    "盐": "健康のために、盐分の取りすぎには注意が必要だ。",
+    "缘": "彼とは不思議なご缘で、十数年ぶりに再会した。",
+    "艳": "彼女の艳やかな着物姿は、会場の注目を集めていた。",
+    "污": "川の水が化学物質によって污染されるのは深刻な問題だ。",
+    "应": "若者の意見を取り入れて、市場のニーズに应えるべきだ。",
+    "樱": "春になると、川沿いの樱並木が満開になり、観光客で賑わう。",
+    "亿": "この映画の制作費は、数亿円にのぼると言われている。",
+    "忆": "幼い頃の記忆を辿ると、祖父母の家の庭が思い浮かぶ。",
+    "价": "商品の价格設定を誤ると、売り上げに大きな影響が出る。",
+    "华": "彼女は华々しいデビューを飾り、一躍スターとなった。",
+    "果": "甘いお果子を食べると、疲れた脳がリフレッシュされる。",
+    "货": "輸出品を載せた货物船が、今朝早く港を出発した。",
+    "涡": "政治的な疑惑の涡中にいた彼は、ついに辞職を表明した。",
+    "过": "不注意な発言が、取り返しのつかない过ちを招くことがある。",
+    "祸": "今回のわざわい（祸）を転じて福となすよう努力しよう。",
+    "个": "个人のプライバシーを守ることは、現代社会の重要な課題だ。",
+    "课": "新しいプロジェクトを進めるために、専任の课が設置された。",
+    "贺": "新年のお祝いとして、親戚に年贺状を送った。",
+    "饿": "世界中には、今も饿死の危険にさらされている子供たちがいる。",
+    "绘": "彼は趣味で油绘を描いており、時々個展を開いている。",
+    "开": "新店舗の开店を祝って、多くの花が届けられた。",
+    "阶": "着実に学段（阶）を上がることで、高度な技術が習得できる。",
+    "块": "大きな岩の块が崩れ落ち、道路が封鎖されてしまった。",
+    "溃": "会社が倒溃するという噂が広まり、社員は不安に陥った。",
+    "坏": "古くなった建物を取坏し、新しいマンションを建てる予定だ。",
+    "怀": "亡き祖母を怀かしんで、古いアルバムを見返した。",
+    "谐": "音楽の谐調を乱さないように、慎重に演奏を進めた。",
+    "贝": "砂浜で綺麗な贝殻を拾って、大切に持ち帰った。",
+    "盖": "鍋の盖を閉めて、弱火でじっくりと煮込んでください。",
+    "该": "事の该否を判断するには、もっと多くの情報が必要だ。",
+    "扩": "事業を扩大するために、海外市場への進出を検討している。",
+    "壳": "卵の壳を剥くときは、水に浸すとやりやすくなる。",
+    "觉": "最近、自分の能力の限界を自觉するようになった。",
+    "较": "二つの案を比较検討した結果、A案を採用することにした。",
+    "阁": "新内阁の発足に伴い、閣僚の名簿が発表された。",
+    "确": "データの正确性を期するために、何度も再確認を行った。",
+    "获": "努力が実を結び、ついに念願のタイトルを获得した。",
+    "吓": "大声を出して子供を吓かすのは、教育上よくない。",
+    "乐": "休日は家で音乐を聴きながら、ゆっくり過ごすのが好きだ。",
+    "额": "予想以上の多额の寄付金が寄せられ、主催者は驚いた。",
+    "颚": "ボクシングの試合で、颚に強い衝撃を受けて倒れてしまった。",
+    "挂": "壁に素敵な絵が挂かっていて、部屋の雰囲気が明るくなった。",
+    "泻": "雨の後、山の斜面から土砂が流泻する危険がある。",
+    "渴": "激しい運動をした後は、喉の渴きを潤すために水を飲む。",
+    "辖": "この事件の捜査は、地元警察の管辖外となっている。",
+    "镰": "昔ながらの镰を使って、丁寧に雑草を刈り取った。",
+    "卷": "彼は仕事の合間を縫って、読書に卷じている。",
+    "陷": "道路が陥没し、車が穴に落ちるという危陷な事故が起きた。",
+    "贯": "初志を贯徹することは、容易なことではない。",
+    "唤": "住民の不安を呼唤（喚）するようなデマは流すべきではない。",
+    "换": "気分転换に、散歩へ出かけることにした。",
+    "间": "昼休みの時间を利用して、語学の勉強に励んでいる。",
+    "闲": "定年退職後は、のんびりと悠闲な生活を送りたい。",
+    "劝": "医師に禁煙を強く劝告されたが、なかなかやめられない。",
+    "宽": "この部屋は宽々としていて、日当たりも非常に良い。",
+    "干": "彼はチームの干部として、リーダーシップを発揮している。",
+    "汉": "汉字の読み書きをマスターするのは、外国人にとって難しい。",
+    "惯": "日本の生活習惯に慣れるまで、かなりの時間がかかった。",
+    "关": "政治に关心を持つことは、市民としての義務である。",
+    "欢": "彼を欢迎するために、盛大なパーティーが開催された。",
+    "监": "工事が計画通りに進んでいるか、厳重に监視している。",
+        "缓": "景気は缓やかに回復しているが、国民の実感はまだ薄い。",
+    "还": "過払いされた税金が还付されることになった。",
+    "馆": "放課後、友人と一緒に图书馆でレポートの資料を探した。",
+    "环": "地球环境を守ることは、現代を生きる我々の責務である。",
+    "简": "複雑な問題を简潔に説明するのは、決して容易なことではない。",
+    "观": "新しい美術館の观覧料は、学生なら半額になる。",
+    "舰": "海上に巨大な軍舰が姿を現し、周囲に緊張が走った。",
+    "鉴": "歴史を鉴として、同じ過ちを繰り返さないようにすべきだ。",
+    "顽": "彼は非常に顽固で、一度決めたら人の意見を聞こうとしない。",
+    "颜": "彼女の颜色を見る限り、体調はかなり回復したようだ。",
+    "愿": "長年の愿望が叶い、ついに自分の店を持つことができた。",
+    "气": "会議の雰气気が悪くならないよう、発言には注意を払った。",
+    "纪": "二十一世纪において、IT技術は社会の基盤となっている。",
+    "轨": "新製品の開発プロジェクトが、ようやく轨道に乗ってきた。",
+    "记": "この出来事は、歴史に深く记録されるべき重大な事件だ。",
+    "饥": "世界には今もなお、激しい饥餓に苦しんでいる人々がいる。",
+    "归": "連休中は多くの人々が归省するため、交通機関が混雑する。",
+    "规": "校规に違反した生徒には、厳しい指導が行われることになっている。",
+    "龟": "浦島太郎の物語に登場する龟は、彼を竜宮城へ連れて行った。",
+    "几": "長年の努力の結果、几つもの困難を乗り越えることができた。",
+    "挥": "実力を十分に発挥するためには、日頃の訓練が欠かせない。",
+    "贵": "これは私にとって非常に贵重な経験であり、一生の宝物だ。",
+    "弃": "最後まであきらめず、自暴自弃にならないことが大切だ。",
+    "毁": "火災によって、歴史的な価値のある建物が完全に毁損した。",
+    "辉": "彼女の瞳は、未来への希望に満ちてキラキラと辉いている。",
+    "机": "この机能を使えば、作業時間を大幅に短縮することができる。",
+    "骑": "彼は週末になると、趣味の自転車でサイクリングに骑行する。",
+    "伪": "この絵画は精巧に作られた伪物であることが判明した。",
+    "义": "ボランティア活動に参加することは、社会的な意义が大きい。",
+    "仪": "伝統的な成人の仪式が、厳かな雰囲気の中で執り行われた。",
+    "戏": "子供たちが公園で楽しそうに遊戏に興じている。",
+    "拟": "現実の状況を拟したシミュレーションを行い、安全性を確認する。",
+    "牺": "成功を手に入れるために、多少の牺牲は避けられない。",
+    "议": "新法案をめぐって、国会で激しい议論が交わされた。",
+    "吃": "健康を考えて、吃煙の習慣を完全に断ち切ることにした。",
+    "诘": "彼は自分のミスを上司に厳しく追诘され、言葉を失った。",
+    "级": "この試験に合格すれば、中级レベルの資格が認定される。",
+    "纠": "複雑に纠問（糾）した利害関係を調整するのは困難を極める。",
+    "宫": "古い離宫の庭園は、四季折々の美しさを楽しませてくれる。",
+    "给": "今月の给料が入ったら、ずっと欲しかった時計を買うつもりだ。",
+    "穷": "彼女は穷地に立たされても、決して笑顔を絶やさなかった。",
+    "据": "現場に残された証拠を根据に、犯人の特定が進められている。",
+    "举": "多くの人々の支持を得て、彼は見事に選举で当選した。",
+    "许": "許可なくこの区域に立ち入ることは、法律で禁じられている。",
+    "鱼": "新鮮な鱼介類をふんだんに使った料理は、この店の自慢だ。",
+    "渔": "渔業資源の枯渇を防ぐため、厳しい規制が設けられている。",
+    "协": "住民の协力を得て、地域の防犯パトロールを強化した。",
+    "况": "現在の社会情况を鑑みると、早期の景気回復は難しいだろう。",
+    "胁": "自然災害は、我々の平和な暮らしを常に威胁している。",
+    "强": "精神力を强めるために、毎日厳しい修行に励んでいる。",
+    "乡": "故乡を離れて十年、ようやく両親に再会することができた。",
+    "桥": "新しい鉄桥が完成したことで、両岸の往来が非常に便利になった。",
+    "矫": "姿勢の悪さを矫正するために、ヨガの教室に通い始めた。",
+    "镜": "毎朝、镜の前で身だしなみを整えるのが私の習慣だ。",
+    "竞": "激しい竞争を勝ち抜いて、彼は一流企業への入社を決めた。",
+    "响": "騒音が近隣住民の生活に悪影响を及ぼしている。",
+    "惊": "突然の知らせに、周囲の人々は皆惊きを隠せなかった。",
+    "晓": "その計画の全貌が明ら（晓）かになる日は、そう遠くない。",
+    "业": "自分の専門分野を生かして、新しい事业を立ち上げたい。",
+    "极": "この問題の解決には、极めて高度な判断が要求される。",
+    "仅": "合格者はわ仅か五名という、非常に狭き門であった。",
+    "紧": "スケジュールの紧迫により、一時の猶予も許されない状況だ。",
+    "锦": "彼は故郷に锦を飾るべく、都会で必死に働いて成功を収めた。",
+    "谨": "公務員としての身分をわきまえ、谨慎な行動を心がけている。",
+    "银": "給与の受け取りには、指定された银行の口座が必要です。",
+    "驱": "最新の技術を驱使して、今までにない製品を開発した。",
+    "缲": "同じ失敗を缲り返さないよう、反省会を開いて対策を練った。",
+    "训": "厳しい特训に耐え抜いた末に、彼はついに金メダルを手にした。",
+    "勋": "長年の社会貢献が認められ、彼は国から勋章を授与された。",
+    "熏": "熏製にされたチーズは、独特の香りがして非常においしい。",
+    "军": "国の安全を保障するため、陸海空の三军が連携を強化している。",
+    "系": "彼は工学系の大学を卒業した後、自動車メーカーに就職した。",
+    "计": "将来のライフプランを计画的に立てることが大切だ。",
+    "惠": "豊かな自然の恩惠を受けて、この地域の農業は発展してきた。",
+    "启": "この本は、私の人生観に大きな影（启）響を与えてくれた。",
+    "揭": "駅前の揭示板に、新しいイベントの案内が貼られている。",
+    "溪": "溪流のせせらぎを聞きながら、静かな時間を過ごした。",
+    "经": "海外での生活を経经したことで、視野が大きく広がった。",
+    "萤": "夏の夜、川べりに萤が舞う様子は幻想的で美しい。",
+    "轻": "轻率な発言が、周囲の反感を買ってしまうことがある。",
+    "倾": "会社が倒産の危機に倾き、全社員が対応に追われた。",
+    "继": "父の遺志を继承し、伝統あるこの店を守り抜く決意だ。",
+    "诣": "初诣には、毎年多くの参拝客が神社に詰めかける。",
+    "庆": "友人の結婚を祝う庆祝の席で、感動的なスピーチをした。",
+    "鸡": "早朝から鸡の声が響き渡り、村の朝が始まった。",
+    "艺": "彼女のピアノ演奏は、まさに芸（艺）術の域に達している。",
+    "鲸": "海で巨大な鲸が跳ねる姿を見て、観光客から歓声が上がった。",
+    "剧": "この映画は、現代社会の闇を鋭く描いた社会派の悲剧だ。",
+    "击": "犯人は背後から击たれ、その場に倒れ込んだ。",
+    "杰": "この作品は、彼の画業における最高傑（杰）作と言われている。",
+    "洁": "手術室は常に清洁な状態に保たれていなければならない。",
+    "决": "今後の進路について、自分自身で最終的な决断を下した。",
+    "结": "長年にわたる研究の结果、ついに新薬の開発に成功した。",
+    "见": "海外旅行を通じて、見（见）聞を広めるのは素晴らしいことだ。",
+    "剑": "彼は剑道の達人で、全国大会で何度も優勝している。",
+    "轩": "台風の影響で、この地域の数轩の家屋が浸水被害に遭った。",
+    "险": "ヒマラヤ山脈への登頂は、常に死の危险と隣り合わせだ。",
+    "圈": "この地域はまだ携帯電話の圏（圈）外で、電波が届かない。",
+    "坚": "どんな困難にも負けない、坚実な経営姿勢が信頼を生む。",
+    "检": "商品の品質を保つため、出荷前に厳重な检査を行っている。",
+        "绢": "このネクタイは良質な绢で作られており、手触りが非常に滑らかだ。",
+    "权": "いかなる理由があろうとも、基本的人权を侵害することは許されない。",
+    "宪": "国家の最高法規である宪法に基づいて、新しい法律が制定された。",
+    "贤": "困難な状況においてこそ、贤明な判断が求められるものだ。",
+    "谦": "彼は自分の功績を誇ることなく、常に谦虚な姿勢を保っている。",
+    "键": "問題解決の键を握っているのは、現場の担当者の声である。",
+    "茧": "養蚕農家では、茧から糸を取り出す作業が丁寧に行われている。",
+    "显": "景気の低迷により、格差社会の問題が显著に現れてきた。",
+    "验": "理論が正しいかどうかを証明するために、繰り返し実验を行った。",
+    "悬": "その未解決事件は、今もなお捜査が悬案となっている。",
+    "现": "インターネットの普及により、生活の利便性は飛躍的に现実化した。",
+    "减": "経費を削减するために、全社を挙げて節電に取り組んでいる。",
+    "严": "校則に違反した生徒に対し、学校側は严正な処分を下した。",
+    "户": "新しく開発された住宅地には、約百户の家が並んでいる。",
+    "库": "万が一の事態に備え、食料や飲料水を仓库に備蓄している。",
+    "夸": "彼は自分の能力を過大に夸張して話す傾向がある。",
+    "锢": "古い慣習に拘（锢）泥することなく、新しいアイデアを取り入れるべきだ。",
+    "顾": "周囲の反対を回顾（顧）みず、彼は自分の信念を貫き通した。",
+    "吴": "歴史の授業で、中国の三国時代における吴の国の興亡を学んだ。",
+    "后": "一度決めた以上、後后（後）悔しないように全力を尽くすつもりだ。",
+    "娱": "過度な娱楽は控え、今は試験勉強に専念しなければならない。",
+    "棋": "彼は棋士として、一歩先を読む冷静な判断力を備えている。",
+    "语": "国際社会で活躍するためには、高い外语能力が必要不可欠だ。",
+    "误": "入力ミスによるデータの误操作が、大きなトラブルの原因となった。",
+    "护": "自然環境を保护するため、ゴミの分別を徹底している。",
+    "广": "この製品の機能について、もっと广報活動を強化すべきだ。",
+    "效": "新しい薬を服用してから、徐々に治效（効）が現れ始めた。",
+    "红": "秋になると、山々の木々が鮮やかに红葉し、観光客を魅了する。",
+    "项": "契約書の内容を一つ一つの事项について、慎重に確認した。",
+    "沟": "話し合いを重ねることで、両者の間にある心の沟を埋めていった。",
+    "矿": "この地域はかつて石炭の炭矿として、非常に栄えていた。",
+    "构": "新しい都市計画の构想を練るために、専門家が集められた。",
+    "纲": "政治政党が発表した政策綱（纲）領は、国民の関心を集めた。",
+    "兴": "地域の兴行（興）を盛り上げるため、祭りを開催することにした。",
+    "钢": "ビルの建設現場に、巨大な钢材が次々と運び込まれている。",
+    "讲": "大学教授による特別讲義が、公開ホールで行われた。",
+    "购": "高額な商品を買（购）入する際は、保証内容を確認しておくべきだ。",
+    "刚": "彼は非常に刚直な性格で、曲がったことが大嫌いだ。",
+    "黑": "経済界の黑幕（黒）と呼ばれる人物が、裏で糸を引いている。",
+    "谷": "米や麦などの谷物を主食とする文化は、世界中に広がっている。",
+    "狱": "凶悪な犯罪を犯した者は、刑狱（獄）所に収監されることになる。",
+    "驹": "光陰矢の如し、月日が経つのは駒（驹）が走るように早いものだ。",
+    "顷": "私が子供の頃（顷）、この辺りはまだ田んぼばかりだった。",
+    "查": "事件の真相を解明するため、警察が厳重な捜查を続けている。",
+    "诈": "高齢者を狙った振り込め诈欺の被害が、後を絶たない。",
+    "锁": "情報漏洩を防ぐため、サーバー室のドアは常に施锁されている。",
+    "灾": "地震などの自然灾害に備えて、非常用持ち出し袋を準備している。",
+    "碎": "不注意で、大切にしていた花瓶を粉々（碎）に割ってしまった。",
+    "济": "世界の経济状況は、原油価格の変動に大きく左右される。",
+    "斋": "彼は今、お斋（斎）を食べて、心身を清める修行を行っている。",
+    "细": "データの细部まで確認を怠らないことが、品質維持の鍵だ。",
+    "采": "今回のプロジェクトでは、若手の斬新なアイデアを采用することにした。",
+    "债": "多額の借（债）金を抱え、彼は返済に追われる日々を送っている。",
+    "岁": "彼女は二十岁の成人式を迎え、大人の仲間入りを果たした。",
+    "载": "この雑誌には、有名な作家の最新エッセイが掲载されている。",
+    "际": "国際（际）的な視野を持つことが、現代のビジネスには不可欠だ。",
+    "剂": "風邪を引いたので、医師に処方された薬剤（剂）を服用した。",
+    "财": "彼は一代で莫大な财産を築き上げ、慈善事業に寄付した。",
+    "栅": "家畜が逃げ出さないように、牧場の周りに頑丈な栅を作った。",
+    "册": "図書館で、歴史に関する資料を数册借りて帰った。",
+    "杀": "害虫を杀菌・殺虫するために、定期的な消毒を行っている。",
+    "杂": "都会の喧騒と杂踏を離れて、静かな村で休暇を過ごした。",
+    "栈": "工事現場の足場として、しっかりとした栈（栈）が組まれている。",
+    "产": "この地域はリンゴの名产地として、全国的に知られている。",
+    "伞": "突然の雨に降られたが、親切な人が伞を貸してくれた。",
+    "赞": "彼の素晴らしい演奏に対し、観客から惜しみない赞辞が送られた。",
+    "斩": "彼は古い慣習を斩新な発想で打ち破り、成功を収めた。",
+    "丝": "絹の糸（丝）を使って、繊細な模様の刺繍を施した。",
+    "姊": "私の姉（姊）は、海外の大学で経済学を教えている。",
+    "纸": "環境保護のため、再生纸を積極的に使用するようにしている。",
+    "视": "物事を多角的な视点から捉えることが、解決への近道だ。",
+    "词": "歌の歌（词）に込められたメッセージが、心に深く響いた。",
+    "齿": "健康を維持するために、定期的な齿科検診を受けることが大切だ。",
+    "试": "実力を试すために、難易度の高い資格試験に挑戦した。",
+    "诗": "彼女は感性豊かに、日常の風景を诗に綴っている。",
+    "资": "新しい事業を始めるための资金を調達するのに苦労した。",
+    "饲": "彼は自宅で珍しい熱帯魚を饲育している。",
+    "志": "地元のニュースを詳しく知るために、地域の情報（志）を購読している。",
+    "咨": "経営に関する専門的な咨問を受け、戦略を練り直した。",
+    "儿": "公立の幼儿園では、子供たちが元気に庭を走り回っている。",
+    "时": "限られた时間の中で、最大限の成果を出すことが求められる。",
+    "识": "専門的な知识を身につけることは、キャリアアップに繋がる。",
+    "轴": "車の車（轴）が破損し、修理に多額の費用がかかることになった。",
+    "执": "彼は自分の任務に対し、強い执着心を持って取り組んでいる。",
+    "质": "商品の质を向上させることが、顧客満足度の向上に繋がる。",
+    "实": "夢を实現させるためには、地道な努力を積み重ねるしかない。",
+    "车": "通勤ラッシュの時間帯は、どの电车も非常に混雑している。",
+    "舍": "不要になった衣類を思い切って四（舍）五入するように捨てた。",
+    "释": "彼の発言の真意を正しく解释するのは、なかなか難しい。",
+    "咒": "古い文献には、病気を治すための咒文が記されている。",
+    "树": "庭に桜の树を植えたので、春に花が咲くのが楽しみだ。",
+    "收": "今年の農作物の収（收）穫量は、例年を上回る見込みだ。",
+    "周": "仕事が忙しく、この数周間はゆっくり休む暇もなかった。",
+    "众": "彼はその類まれな才能で、多くの観众を魅了した。",
+    "习": "毎日コツコツと学习を続けることが、合格への最短距離だ。",
+    "丑": "自分の丑態をさらすことになり、非常に恥ずかしい思いをした。",
+    "袭": "突然の寒波が列島を袭い、各地で厳しい寒さとなった。",
+    "涩": "このお茶は少し渋（涩）みがあるが、後味はさっぱりしている。",
+    "铳": "厳重な銃（铳）規制のおかげで、この国の治安は保たれている。",
+    "兽": "野生の野（兽）による農作物の被害が深刻な問題となっている。",
+    "纵": "飛行機は纵横無尽に空を駆け巡り、目的地へと向かった。",
+    "肃": "式典は終始、厳肃な雰囲気の中で執り行われた。",
+    "缩": "予算の缩小により、一部のプロジェクトを中断せざるを得ない。",
+    "处": "トラブルが発生した際は、迅速かつ適切な处置が必要だ。",
+    "书": "新しい住居に引っ越した後、速やかに住居移転の届（书）を出した。",
+    "绪": "パズルのピースが一つ見つかり、解決の端（绪）が見えてきた。",
+    "诸": "诸外国との友好関係を築くことは、平和への第一歩だ。",
+    "涉": "他人の私生活に深く干（涉）するのは、避けるべきマナーだ。",
+    "绍": "新しいプロジェクトメンバーとして、田中さんを介绍します。",
+    "讼": "知的財産権をめぐって、二社間で激しい訴（讼）争が続いている。",
+    "胜": "厳しい練習を積み重ねた結果、ついに試合で胜利を収めた。",
+    "烧": "夏の強い日差しを浴びて、肌が真っ赤に日烧してしまった。",
+    "妆": "彼女はいつも清潔感のある化妆をしていて、好印象を与える。",
+    "诏": "歴史の資料館で、天皇が発したとされる诏勅の写しを見た。",
+    "证": "彼の身の潔白を立证するために、有力な証拠が必要だ。",
+    "伤": "スポーツの試合中に怪伤をしてしまい、しばらく休養が必要だ。",
+    "奖": "優れた学業成績を収めた学生に、奖学金が授与された。",
+    "详": "事件の详細については、現在も調査が進められている。",
+    "冲": "冷たい水で顔を冲（洗）い流すと、眠気がすっきりと覚める。",
+    "赏": "見事な演技を披露した俳優に、観客から惜しみない赏賛が送られた。",
+    "偿": "被害者に対して、相応の賠偿金を支払うことが命じられた。",
+    "钟": "教会の钟の音が、静かな村の夕暮れに響き渡った。",
+    "乘": "通勤のために、毎日バスと電車を乗り乘（継）いでいる。",
+    "净": "川の水を净化して、飲料水として利用する技術が開発された。",
+    "剩": "料理を作りすぎてしまったので、余（剩）り物を冷蔵庫に入れた。",
+    "场": "今回の事案は、当事者の立场によって見解が大きく異なる。",
+    "叠": "新しい畳（叠）の香りが部屋いっぱいに広がり、心が落ち着く。",
+    "绳": "荷物が崩れないように、太い绳でしっかりと縛り付けた。",
+    "壤": "豊かな土壤に恵まれたこの土地は、農業に適している。",
+    "娘": "彼女は名門校の令（娘）として、幼い頃から厳しく育てられた。",
+    "锭": "薬局で、持ち運びに便利な锭剤タイプの薬を購入した。",
+    "让": "高齢者に席を让るという小さな親切が、社会を温かくする。",
+    "酿": "この酒造メーカーは、独自の技術で美味しい酒を酿造している。",
+    "饰": "部屋を素敵な装饰で飾って、友人たちを迎え入れる準備をした。",
+    "织": "この布地は、熟練の職人によって細かく织り上げられている。",
+    "职": "自分の职務を全うすることは、社会人としての基本である。",
+    "绅": "彼は誰に対しても礼儀正しく、まさに绅士的な振る舞いをする。",
+    "进": "技術の進（进）歩に伴い、私たちの生活はますます便利になっている。",
+    "诊": "体調が優れないので、近くの病院で診（诊）察を受けた。",
+    "审": "裁判所での审理を経て、被告に最終的な判決が言い渡された。",
+    "亲": "両亲の期待に応えるべく、彼は一生懸命に勉強に励んだ。",
+    "阵": "敵の阵地を攻略するために、綿密な作戦が立てられた。",
+    "寻": "行方不明になった飼い犬を、近所の人たちと一緒に寻（探）した。",
+    "肾": "健康診断の結果、肾臓の数値に少し異常が見られた。",
+    "须": "この手続きには、本人確認書類の提出が必（须）要です。",
+    "图": "新しい事業の設（图）案をまとめ、プレゼンに臨んだ。",
+    "帅": "彼はチームの主帅として、メンバーを力強く牽引している。",
+    "粹": "日本文化の精（粹）を詰め込んだような、素晴らしい作品だ。",
+    "髓": "彼の音楽に対する情熱は、骨の髓まで染み渡っているようだ。",
+    "濑": "激しい川の濑（瀬）を乗り越えて、カヌーで下っていく。",
+    "制": "この靴は職人による手制品で、一足一足丁寧に作られている。",
+    "齐": "全社員が齐（一斉）に清掃を行い、オフィスをピカピカにした。",
+    "势": "試合の形势を逆転させるために、一か八かの勝負に出た。",
+    "圣": "クリスマスには、圣なる夜を家族と一緒に静かに過ごす。",
+    "诚": "お客様の苦情に対し、诚実な対応を心がけることが大切だ。",
+    "请": "取引先に協力を要（请）するために、企画書を再作成した。",
+    "只": "数（只）の船が港に停泊し、荷卸しの準備をしている。",
+    "责": "リーダーとしての重责を担い、プロジェクトを成功に導いた。",
+    "迹": "歴史の足迹をたどる旅は、多くの発見と感動に満ちている。",
+    "积": "長年にわたる努力の积み重ねが、今日の成功をもたらした。",
+    "绩": "彼は営業成绩が優秀で、社内で何度も表彰されている。",
+    "设": "新しい施設の建设に向けて、地鎮祭が執り行われた。",
+    "摄": "健康維持のために、バランスよく栄養を摄取することが重要だ。",
+    "节": "電気や水を节約することは、地球環境を守ることにも繋がる。",
+    "说": "相手を納（说）得させるためには、論理的な説明が必要だ。",
+    "绝": "どんなに困難な状況でも、決して绝望してはいけない。",
+    "专": "彼は法学を专攻しており、将来は弁護士を目指している。",
+    "战": "平和を維持するためには、战争のない世界を築かなければならない。",
+    "羡": "彼女の豊かな才能は、周囲の人々から羨（羡）望の的となっている。",
+    "钱": "無駄遣いを控え、将来のために少しずつ貯（钱）金をしている。",
+    "线": "海岸线に沿ってドライブを楽しみ、美しい景色を堪能した。",
+    "迁": "時代の変迁とともに、人々の価値観も大きく変化してきた。",
+    "选": "多くの候補者の中から、最も相応しい人物を选出した。",
+    "荐": "恩師の推（荐）状のおかげで、希望の企業に就職できた。",
+    "纤": "彼女の指先は纤細で、ピアノを弾く姿がとても美しい。",
+    "鲜": "朝採れたばかりの鲜魚が、市場に威勢よく並んでいる。",
+    "渐": "新しい環境に、渐（逐）次慣れていくことが大切だ。",
+    "缮": "古くなった建物を修（缮）し、歴史的建造物として保存する。",
+    "组": "新しいプロジェクトを遂行するための、特別チームが组織された。",
+    "疏": "連絡を怠ったことで、友人との関係が疏（疎）遠になってしまった。",
+    "诉": "自分の正当性を诉えるために、法廷で証言することにした。",
+    "础": "基礎（础）体力をつけることが、スポーツの上達には不可欠だ。",
+    "庄": "都会の喧騒から離れた、静かな別（庄）で休暇を過ごした。",
+    "仓": "古い仓（仓）庫から、思わぬ宝物が見つかった。",
+    "搜": "行方不明者の搜索活動が、自衛隊によって続けられている。",
+    "插": "花の插し木をして、大切に育てていたら綺麗な花が咲いた。",
+    "巢": "ツバメが軒下に巢を作っており、ヒナが元気に鳴いている。",
+    "扫": "年末に大清扫を行い、家の中をすっきりと整理した。",
+    "曾": "彼は曾（か）つて、この町で一番有名な料理人だった。",
+    "窗": "窗から見える景色は、季節ごとに違う表情を見せてくれる。",
+    "创": "新しい価値を创造するために、固定概念に縛られないことが必要だ。",
+    "丧": "大切な友人を亡くし、深い丧失感に襲われている。",
+    "瘦": "ダイエットに成功して、以前よりもかなり瘦せたと言われる。",
+    "层": "社会の各层から、新しいリーダーの誕生が期待されている。",
+    "总": "今月の売上総（总）額を計算し、報告書を作成した。",
+    "骚": "駅前で骚ぎが起き、警察が出動する事態となった。",
+    "增": "人口の增加に伴い、新しいインフラの整備が求められている。",
+    "藏": "彼は貴重な古美術品を、秘密の場所に秘藏している。",
+    "赠": "お世話になった先生に、感謝の気持ちを込めて記念品を赠呈した。",
+    "脏": "激しい運動をして、心（脏）の鼓動が早くなった。",
+    "侧": "相手の侧面に立って物事を考えることが、相互理解の鍵だ。",
+    "测": "実験結果を予測（测）するために、高度な計算機を用いた。",
+    "续": "どんなに辛くても、地道な努力を継（续）けることが成功への道だ。",
+    "孙": "私の孙は、今年から小学校に通い始めた。",
+    "损": "不注意による過失で、会社に多額の損（损）失を与えてしまった。",
+    "对": "困難な課題に对処するために、専門家チームが結成された。",
+    "带": "常に身分証明書を携（带）し、不測の事態に備えている。",
+    "态": "問題が解決するまで、事態を静観する态勢を取ることにした。",
+    "题": "未解決の問（题）を解明するために、新たな研究が始まった。",
+    "泷": "山奥にある巨大な泷（滝）の迫力に、圧倒された。",
+    "择": "将来の進路を選（择）択する際、親のアドバイスを参考にした。",
+    "泽": "潤（泽）な資金力を生かして、大規模な投資を行った。",
+    "托": "友人に大切な用件を委（托）し、私は出張に向かった。",
+    "诺": "約束を守ることは、人間関係において最も基本の承（诺）だ。",
+    "浊": "長雨の影響で、川の水が茶色く浊っている。",
+    "达": "長年の努力が実を結び、ついに目標を达成することができた。",
+    "夺": "彼は見事な逆転劇で、チャンピオンの座を夺い取った。",
+    "谁": "あの時、彼を助けたのは一体谁だったのだろうか。",
+    "单": "手続きは非常に单純で、誰でも簡単に行うことができる。",
+    "叹": "彼女の素晴らしい歌声を聞いて、観客から叹声が漏れた。",
+    "绽": "春の訪れとともに、庭の梅の花がほころび（绽）始めた。",
+    "诞": "新しい命の诞生を、家族全員で心から祝った。",
+    "锻": "体を锻えるために、仕事帰りにジムに通っている。",
+    "团": "地域住民の团結によって、街の美化が進んでいる。",
+    "弹": "彼はピアノの弾（弹）奏が非常に得意で、大会で優勝したこともある。",
+    "谈": "今後の事業計画について、社長と面谈を行った。",
+    "坛": "彼は政界を引退した後、言論の教（坛）で活躍している。",
+    "值": "この絵画には、歴史的に極めて高い值打ちがある。",
+    "耻": "自分の犯した過ちを認めないのは、恥（耻）ずべき行為だ。",
+    "迟": "事故の影響で電車の到着が大幅に迟れ、多くの乗客が困惑した。",
+    "致": "細部まで致密に設計されたプランが、成功の秘訣だった。",
+    "筑": "新しいダムを建（筑）するために、広大な土地が確保された。",
+    "铸": "この鐘は、伝統的な技法を用いて铸造されている。",
+    "驻": "大使館に驻在している職員は、常に各国の動向に目を光らせている。",
+    "贮": "災害に備えて、十分な量の食料を贮蔵しておく必要がある。",
+    "厅": "新しい市役所の庁（厅）舎は、バリアフリーに配慮された設計だ。",
+    "长": "景気の低迷から抜け出し、安定した経済成长を目指している。",
+    "帐": "毎日の支出を帐簿に記録し、無駄遣いを防ぐようにしている。",
+    "张": "発表の直前、彼は緊張のあまり顔がこわばって（张）いた。",
+    "雕": "職人の手によって精巧に雕刻された仏像が、寺院に祀られている。",
+    "钓": "週末は川へ钓りに出かけ、静かな時間を過ごすのが趣味だ。",
+    "顶": "努力を重ねた末に、ついに業界の頂（顶）点に上り詰めた。",
+    "鸟": "朝早くから、庭で小さな鸟たちがさえずっている。",
+    "贴": "忘れ物をしないように、目立つ場所にメモを贴っておいた。",
+    "肠": "健康維持のために、肠内環境を整える食品を積極的に食べている。",
+    "调": "新しい環境に自分を调節していくのは、時間がかかるものだ。",
+    "听": "相手の話を真剣に聴（听）くことが、コミュニケーションの基本だ。",
+    "惩": "悪質な違反者に対しては、厳しい惩罰が科せられるべきだ。",
+    "沉": "夕日が地平線に沉んでいく様子は、息をのむほど美しかった。",
+    "陈": "古い陈列棚に、骨董品が整然と並べられている。",
+    "赁": "都会の賃（赁）貸マンションは、家賃が非常に高い傾向にある。",
+    "镇": "彼は冷静に事態を見守り、心を落ち着かせて（镇）いた。",
+    "坠": "パラシュートが開き、彼は無事に地上へ降（坠）下した。",
+    "冢": "歴史の教科書で、古代の巨大な前方後円冢（墳）の写真を見た。",
+    "渍": "野菜を浅渍けにして、夕食の副菜として食卓に出した。",
+    "鹤": "雪原に佇む一羽の鹤の姿は、孤高で美しい。",
+    "贞": "彼女は贞淑な妻として、長年夫を支え続けてきた。",
+    "订": "旅行の予約を確（订）定するために、内金を支払った。",
+    "递": "時代の移り変わりとともに、伝統文化が次世代へ伝（递）承されていく。",
+    "侦": "事件の真相を暴くため、腕利きの探侦に調査を依頼した。",
+    "缔": "両国間で平和条約が缔結され、長年の対立が終結した。",
+    "敌": "強大な敌に立ち向かうために、一致団結することが必要だ。",
+    "铁": "この街は、かつて铁鋼業で非常に栄えていた。",
+    "彻": "現場主義を彻底することで、サービスの質を向上させた。",
+    "转": "仕事の合間に、気分転（转）換のために散歩へ出かけた。",
+    "传": "日本には、古くから传わる伝統的な行事が数多くある。",
+    "电": "生活に欠かせない电力を安定して供給することが重要だ。",
+    "赌": "一か八かの赌けに出た結果、運良く成功を収めることができた。",
+    "涂": "新しいペンキを壁に涂って、部屋をリニューアルした。",
+    "东": "太陽は东から昇り、西へと沈んでいく。",
+    "岛": "休暇を利用して、瀬戸内海の小さな岛を巡る旅に出た。",
+    "讨": "新しいプロジェクトの方向性について、会議で讨議した。",
+    "栋": "大学の敷地内に、新しい研究栋が建設される予定だ。",
+    "汤": "寒い日は、温かい汤舟に浸かって体を温めるのが一番だ。",
+    "稻": "田んぼ一面に稻穂が実り、収穫の時期が近づいている。",
+    "头": "問題を解決するために、头を悩ませている日々が続いている。",
+    "誊": "契約書の写しを誊写し、関係者に配布した。",
+    "斗": "どんなに困難な状況でも、最後まで斗志を失わなかった。",
+    "腾": "物価の高腾により、庶民の生活は厳しさを増している。",
+    "动": "不測の事態に直面しても、決して动揺してはいけない。",
+    "铜": "この彫像は、铜で作られており、独特の光沢を放っている。",
+    "导": "優れた指导者のもとで、チームは見違えるほど成長した。",
+    "德": "彼は高い道德観を持っており、周囲から深く尊敬されている。",
+    "笃": "彼は笃実な性格で、誰に対しても真面目に接する。",
+    "读": "週末は図書館で、ゆっくりと読（读）書を楽しむのが習慣だ。",
+    "顿": "突然の事態に、彼は一瞬立ち止まって（顿）考え込んだ。",
+    "贪": "贪欲に知識を吸収しようとする姿勢が、成長を支えている。"
+}
+
+// ============================================================
+//  DATA
+// ============================================================
+
+const LEVEL_ONE_RATIO = 0.35;
+const CHAR_PAIRS = Object.entries(data)
+  .filter(([chinese, japanese]) => chinese && japanese)
+  .map(([chinese, japanese]) => ({ chinese, japanese }));
+
+const levelOneCount = Math.max(1, Math.floor(CHAR_PAIRS.length * LEVEL_ONE_RATIO));
+
+const GRID_QUESTIONS = CHAR_PAIRS.map((pair, index) => ({
+  ...pair,
+  level: index < levelOneCount ? 1 : 2,
+}));
+
+const SENTENCE_PAIRS = Object.entries(sentences)
+  .map(([wrongChar, wrongSentence]) => {
+    const correctChar = data[wrongChar];
+    const chars = [...wrongSentence];
+    const answerIndex = chars.indexOf(wrongChar);
+
+    if (!correctChar || answerIndex === -1) return null;
+
+    const sentence = [...chars];
+    sentence[answerIndex] = correctChar;
+
+    return {
+      wrongChar,
+      correctChar,
+      wrongSentence,
+      sentence: sentence.join(''),
+    };
+  })
+  .filter(Boolean);
+
+const sentenceLevelOneCount = Math.max(1, Math.floor(SENTENCE_PAIRS.length * LEVEL_ONE_RATIO));
+
+const SENTENCE_QUESTIONS = SENTENCE_PAIRS.map((pair, index) => ({
+  level: index < sentenceLevelOneCount ? 1 : 2,
+  sentence: pair.sentence,
+  wrong: pair.wrongSentence,
+  answer: pair.wrongChar,
+  correct: pair.correctChar,
+  answerIndex: [...pair.wrongSentence].indexOf(pair.wrongChar),
+}));
+
+const TOTAL_ROUNDS = 10;
+const DEFAULT_ROUND_TIME = 15;
+const MIN_ROUND_TIME = 5;
+const MAX_ROUND_TIME = 120;
+const NON_CLICKABLE_SENTENCE_CHAR_RE = /[\s、，,。．！？!?：:；;「」『』（）()［］\[\]【】〈〉《》〔〕｛｝{}・…~～\-ー—―]/;
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+
+let state = {
+  mode: null,           // 'grid' | 'sentence'
+  score: 0,
+  combo: 0,
+  maxCombo: 0,
+  correct: 0,
+  total: 0,
+  level: 1,
+  round: 0,
+  answered: false,
+  timerInterval: null,
+  timeLeft: 0,
+  currentQuestion: null,
+};
+
+let gameConfig = {
+  roundTime: DEFAULT_ROUND_TIME,
+  soundEnabled: true,
+};
+
+// ============================================================
+//  AUDIO
+// ============================================================
+
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
+function playSound(type) {
+  if (!gameConfig.soundEnabled) return;
+  const ctx = getAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  if (type === 'correct') {
+    osc.frequency.setValueAtTime(523, ctx.currentTime);
+    osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } else if (type === 'wrong') {
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.setValueAtTime(250, ctx.currentTime + 0.15);
+    osc.frequency.setValueAtTime(200, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } else if (type === 'popup') {
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.setValueAtTime(800, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } else if (type === 'click') {
+    osc.frequency.setValueAtTime(440, ctx.currentTime);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.05);
+  } else if (type === 'countdown') {
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  } else if (type === 'timeout') {
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  }
+}
+
+// ============================================================
+//  HELPERS
+// ============================================================
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getAccuracy() {
+  return state.total === 0 ? 0 : Math.round((state.correct / state.total) * 100);
+}
+
+function getRoundTimeFromInput() {
+  const input = document.getElementById('round-time-input');
+  const raw = input ? parseInt(input.value, 10) : DEFAULT_ROUND_TIME;
+  const safe = Number.isFinite(raw)
+    ? Math.min(MAX_ROUND_TIME, Math.max(MIN_ROUND_TIME, raw))
+    : DEFAULT_ROUND_TIME;
+  if (input) input.value = String(safe);
+  return safe;
+}
+
+function getSoundEnabled() {
+  const input = document.getElementById('sound-toggle');
+  return input ? input.checked : true;
+}
+
+// ============================================================
+//  SCREEN MANAGEMENT
+// ============================================================
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.body.classList.toggle('result-screen', id === 'result');
+}
+
+function goHome() {
+  stopTimer();
+  showScreen('home');
+}
+
+// ============================================================
+//  GAME START
+// ============================================================
+
+function startGame(mode) {
+  gameConfig.roundTime = getRoundTimeFromInput();
+  gameConfig.soundEnabled = getSoundEnabled();
+  state = {
+    mode,
+    score: 0,
+    combo: 0,
+    maxCombo: 0,
+    correct: 0,
+    total: 0,
+    level: 1,
+    round: 0,
+    answered: false,
+    timerInterval: null,
+    timeLeft: 0,
+  };
+  showScreen(mode === 'grid' ? 'grid-mode' : 'sentence-mode');
+  updateStats();
+  nextRound();
+}
+
+function restartGame() {
+  startGame(state.mode);
+}
+
+// ============================================================
+//  STATS UPDATE
+// ============================================================
+
+function updateStats() {
+  const prefix = state.mode === 'grid' ? 'grid' : 'sentence';
+  const scoreEl = document.getElementById(`${prefix}-score`);
+  const comboEl = document.getElementById(`${prefix}-combo`);
+  const accEl   = document.getElementById(`${prefix}-accuracy`);
+  const lvlEl   = document.getElementById(`${prefix}-level`);
+  const roundEl = document.getElementById(`${prefix}-round`);
+
+  scoreEl.textContent = state.score;
+  comboEl.textContent = state.combo;
+  accEl.textContent   = getAccuracy() + '%';
+  lvlEl.textContent   = 'Lv' + state.level;
+  lvlEl.className     = 'level-badge' + (state.level === 2 ? ' level-2' : '');
+  roundEl.textContent = `第 ${state.round + 1} / ${TOTAL_ROUNDS} 問`;
+}
+
+// ============================================================
+//  TIMER
+// ============================================================
+
+function startTimer(seconds, onTimeout) {
+  stopTimer();
+  state.timeLeft = seconds;
+  const prefix = state.mode === 'grid' ? 'grid' : 'sentence';
+  const fill = document.getElementById(`${prefix}-timer`);
+  fill.style.width = '100%';
+
+  const startTime = Date.now();
+  const duration = seconds * 1000;
+
+  state.timerInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const pct = Math.max(0, 1 - elapsed / duration);
+    fill.style.width = (pct * 100) + '%';
+
+    if (pct <= 0) {
+      stopTimer();
+      onTimeout();
+    }
+  }, 50);
+}
+
+function stopTimer() {
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+}
+
+// ============================================================
+//  NEXT ROUND
+// ============================================================
+
+function nextRound() {
+  if (state.round >= TOTAL_ROUNDS) {
+    showResult();
+    return;
+  }
+  state.answered = false;
+  adjustLevel();
+
+  if (state.mode === 'grid') {
+    showGridRound();
+  } else {
+    showSentenceRound();
+  }
+}
+
+function adjustLevel() {
+  if (state.total < 3) return; // wait a few rounds
+  const acc = getAccuracy();
+  if (acc > 80 && state.level < 2) {
+    state.level = 2;
+    levelUpEffect();
+  } else if (acc < 50 && state.level > 1) {
+    state.level = 1;
+  }
+  updateStats();
+}
+
+// ============================================================
+//  GRID MODE
+// ============================================================
+
+function showGridRound() {
+  const container = document.getElementById('grid-container');
+  container.innerHTML = '';
+
+  const gridSize = state.level === 1 ? 6 : 7;
+  container.style.gridTemplateColumns = `repeat(${gridSize}, clamp(56px, 14vw, 88px))`;
+
+  // Pick a question for current level
+  const pool = GRID_QUESTIONS.filter(q => q.level <= state.level);
+  const question = pickRandom(pool);
+  state.currentQuestion = question;
+
+  // Pick a random position for the Japanese char
+  const total = gridSize * gridSize;
+  const correctPos = Math.floor(Math.random() * total);
+
+  for (let i = 0; i < total; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell animate-in';
+    cell.style.animationDelay = (i * 0.02) + 's';
+    const row = String.fromCharCode(65 + Math.floor(i / gridSize));
+    const col = (i % gridSize) + 1;
+    cell.dataset.label = row + col;
+
+    const isCorrect = i === correctPos;
+    cell.textContent = isCorrect ? question.japanese : question.chinese;
+
+    cell.addEventListener('click', () => {
+      if (state.answered) return;
+      state.answered = true;
+      stopTimer();
+
+      if (isCorrect) {
+        handleCorrect(cell, cell);
+      } else {
+        // Highlight the correct cell
+        handleWrong(cell, container.children[correctPos]);
+      }
+    });
+
+    container.appendChild(cell);
+  }
+
+  startTimer(gameConfig.roundTime, () => {
+    if (state.answered) return;
+    state.answered = true;
+    handleTimeout(container.children[correctPos]);
+  });
+}
+
+// ============================================================
+//  SENTENCE MODE
+// ============================================================
+
+function showSentenceRound() {
+  const block = document.getElementById('sentence-block');
+  block.innerHTML = '';
+
+  const pool = SENTENCE_QUESTIONS.filter(q => q.level <= state.level);
+  const q = pickRandom(pool);
+  state.currentQuestion = q;
+
+  const container = document.createElement('div');
+  container.className = 'sentence-item';
+
+  // Render the wrong sentence with clickable characters
+  const chars = [...q.wrong];
+  let answeredLocal = false;
+  const breakChars = new Set(['、', '，', ',']);
+  let segment = document.createElement('span');
+  segment.className = 'sentence-segment';
+
+  chars.forEach((ch, idx) => {
+    const span = document.createElement('span');
+    span.className = 'sentence-char';
+    span.textContent = ch;
+    const isClickable = !NON_CLICKABLE_SENTENCE_CHAR_RE.test(ch);
+    if (isClickable) span.classList.add('clickable');
+
+    if (!isClickable) {
+      segment.appendChild(span);
+      if (breakChars.has(ch)) {
+        container.appendChild(segment);
+        if (idx < chars.length - 1) {
+          container.appendChild(document.createElement('br'));
+        }
+        segment = document.createElement('span');
+        segment.className = 'sentence-segment';
+      }
+      return;
+    }
+
+    if (idx === q.answerIndex) {
+      span.addEventListener('click', () => {
+        if (answeredLocal) return;
+        answeredLocal = true;
+        state.answered = true;
+        stopTimer();
+        // Reveal correct char
+        span.textContent = q.correct;
+        span.classList.add('reveal');
+        handleCorrect(span, span);
+      });
+    } else {
+      span.addEventListener('click', () => {
+        if (answeredLocal) return;
+        answeredLocal = true;
+        state.answered = true;
+        stopTimer();
+        span.classList.add('wrong-char');
+        // Also reveal correct answer
+        const correctSpan = container.querySelectorAll('.sentence-char')[q.answerIndex];
+        correctSpan.textContent = q.correct;
+        correctSpan.classList.add('reveal');
+        handleWrong(span, correctSpan);
+      });
+    }
+
+    segment.appendChild(span);
+
+    if (breakChars.has(ch)) {
+      container.appendChild(segment);
+
+      if (idx < chars.length - 1) {
+        container.appendChild(document.createElement('br'));
+      }
+
+      segment = document.createElement('span');
+      segment.className = 'sentence-segment';
+    }
+  });
+
+  if (segment.childNodes.length) {
+    container.appendChild(segment);
+  }
+
+  block.appendChild(container);
+
+  // Also show the correct sentence for reference (subtle)
+  const ref = document.createElement('div');
+  ref.style.cssText = 'font-size:0.78rem; color:#bbb; margin-top:0.5rem; letter-spacing:0.05em;';
+  ref.className = 'sentence-ref';
+  ref.textContent = '正解：' + q.sentence;
+  ref.style.opacity = '0';
+  ref.style.transition = 'opacity 0.5s';
+  block.appendChild(ref);
+  fitSentenceLayout();
+
+  startTimer(gameConfig.roundTime, () => {
+    if (answeredLocal) return;
+    answeredLocal = true;
+    state.answered = true;
+    const correctSpan = container.querySelectorAll('.sentence-char')[q.answerIndex];
+    correctSpan.textContent = q.correct;
+    correctSpan.classList.add('reveal');
+    ref.style.opacity = '1';
+    handleTimeout(correctSpan);
+  });
+}
+
+function fitSentenceLayout() {
+  const block = document.getElementById('sentence-block');
+  const container = block ? block.querySelector('.sentence-item') : null;
+  const ref = block ? block.querySelector('.sentence-ref') : null;
+  if (!block || !container) return;
+
+  const availableWidth = Math.max(120, window.innerWidth - 64);
+  const targets = ref ? [container, ref] : [container];
+
+  targets.forEach((node) => {
+    node.style.fontSize = '';
+    const baseFontSize = parseFloat(getComputedStyle(node).fontSize);
+    const contentWidth = node.scrollWidth;
+
+    if (contentWidth > availableWidth && baseFontSize > 0) {
+      node.style.fontSize = `${baseFontSize * (availableWidth / contentWidth)}px`;
+    }
+  });
+
+  const widest = Math.max(...targets.map(node => node.getBoundingClientRect().width));
+  block.style.width = `${Math.min(availableWidth, Math.ceil(widest))}px`;
+}
+
+// ============================================================
+//  ANSWER HANDLING
+// ============================================================
+
+function handleCorrect(element, source) {
+  state.correct++;
+  state.total++;
+  state.combo++;
+  if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+
+  const comboMultiplier = 1 + 0.5 * Math.min(state.combo - 1, 5);
+  const points = Math.round(100 * comboMultiplier);
+  state.score += points;
+
+  element.classList.add('correct');
+  playSound('correct');
+  spawnParticles(source, 'emerald');
+  showCorrectPopup();
+  showFlyingScore(source, '+' + points, 'plus');
+  showCombo();
+
+  if (state.combo >= 3) {
+    document.querySelector('.screen.active').classList.add('shake');
+    setTimeout(() => document.querySelector('.screen.active').classList.remove('shake'), 300);
+  }
+
+  updateStats();
+  state.round++;
+  setTimeout(nextRound, 700);
+}
+
+function handleWrong(element, correctElement) {
+  state.total++;
+  state.combo = 0;
+  state.score = Math.max(0, state.score - 30);
+
+  element.classList.add('wrong');
+  playSound('wrong');
+  if (correctElement) {
+    correctElement.classList.add('correct');
+  }
+  showFlyingScore(element, '-30', 'minus');
+  updateStats();
+  state.round++;
+  showErrorModal();
+}
+
+function handleTimeout(correctElement) {
+  state.total++;
+  state.combo = 0;
+  playSound('timeout');
+
+  if (correctElement) {
+    correctElement.classList.add('correct');
+  }
+
+  const screen = document.querySelector('.screen.active');
+  screen.classList.add('timeout');
+  setTimeout(() => screen.classList.remove('timeout'), 1000);
+
+  updateStats();
+  state.round++;
+  showErrorModal();
+}
+
+function showErrorModal() {
+  const modal = document.getElementById('error-modal');
+  const batsu = document.getElementById('error-batsu-popup');
+  const q = state.currentQuestion;
+  const wrongChar = q ? (q.answer || q.chinese) : '?';
+  const correctChar = q ? (q.correct || q.japanese) : '?';
+
+  playSound('wrong');
+
+  document.getElementById('error-wrong-char').textContent = wrongChar;
+  document.getElementById('error-correct-char').textContent = correctChar;
+
+  modal.classList.add('open');
+  batsu.classList.add('open');
+}
+
+function dismissErrorModal() {
+  const modal = document.getElementById('error-modal');
+  const batsu = document.getElementById('error-batsu-popup');
+  modal.classList.remove('open');
+  batsu.classList.remove('open');
+  nextRound();
+}
+
+// ============================================================
+//  VISUAL EFFECTS
+// ============================================================
+
+function showFlyingScore(source, text, type) {
+  const el = document.createElement('div');
+  el.className = 'flying-score ' + type;
+  el.textContent = text;
+
+  const rect = source.getBoundingClientRect
+    ? source.getBoundingClientRect()
+    : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+  el.style.left = (rect.left + rect.width / 2 - 20) + 'px';
+  el.style.top  = (rect.top + rect.height / 2) + 'px';
+
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function showCombo() {
+  if (state.combo < 2) return;
+  const el = document.getElementById('combo-display');
+  el.textContent = state.combo + ' 連撃！';
+  el.classList.remove('show');
+  void el.offsetWidth; // reflow
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1000);
+}
+
+function showCorrectPopup() {
+  playSound('popup');
+  const el = document.getElementById('correct-popup');
+  el.classList.remove('active');
+  void el.offsetWidth;
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), 1600);
+}
+
+function spawnParticles(source, color) {
+  const rect = source.getBoundingClientRect
+    ? source.getBoundingClientRect()
+    : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+
+  const count = 12;
+  const colors = {
+    emerald: ['#2D8B57', '#4CAF50', '#81C784'],
+    error:   ['#C53D43', '#EF5350', '#E57373'],
+  };
+
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const c = colors[color] || colors.emerald;
+    p.style.background = c[Math.floor(Math.random() * c.length)];
+    p.style.left = cx + 'px';
+    p.style.top  = cy + 'px';
+    p.style.width = p.style.height = (3 + Math.random() * 5) + 'px';
+
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const dist  = 30 + Math.random() * 50;
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist;
+
+    document.body.appendChild(p);
+
+    p.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+    ], { duration: 500 + Math.random() * 300, easing: 'ease-out', fill: 'forwards' });
+
+    setTimeout(() => p.remove(), 900);
+  }
+}
+
+function levelUpEffect() {
+  const flash = document.getElementById('level-flash');
+  const text  = document.getElementById('level-up-text');
+  flash.classList.add('active');
+  text.classList.add('active');
+  setTimeout(() => {
+    flash.classList.remove('active');
+    text.classList.remove('active');
+  }, 1300);
+}
+
+// ============================================================
+//  RESULT
+// ============================================================
+
+// Settings popover toggle
+(function() {
+  const btn = document.getElementById('settings-btn');
+  const pop = document.getElementById('settings-popover');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    pop.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!pop.contains(e.target) && e.target !== btn) {
+      pop.classList.remove('open');
+    }
+  });
+})();
+
+function showResult() {
+  stopTimer();
+  document.getElementById('result-score').textContent   = state.score;
+  document.getElementById('result-accuracy').textContent = getAccuracy() + '%';
+  document.getElementById('result-combo').textContent    = state.maxCombo;
+  document.getElementById('result-level').textContent    = 'Lv' + state.level;
+
+  showScreen('result');
+}
+
+// Apply initial screen state so background image is hidden on home.
+showScreen('home');
+window.addEventListener('resize', fitSentenceLayout);
+
+window.startGame = startGame;
+window.restartGame = restartGame;
+window.goHome = goHome;
+window.dismissErrorModal = dismissErrorModal;
+</script>
+</body>
+</html>
