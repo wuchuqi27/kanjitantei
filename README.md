@@ -1,8 +1,7 @@
 # 漢字探偵 (Kanji Detective)
 
-→ https://wuchuqi27.github.io/kanjitantei/
+Link → https://wuchuqi27.github.io/kanjitantei/
 
-[线上地址](https://wuchuqi27.github.io/kanjitantei/)
 
 > **中文** | [日本語](#漢字探偵-kanji-detective-1)
 
@@ -11,6 +10,7 @@
 ## 面向汉语母语日语学习者的中日汉字字形辨析辅助教学系统
 
 ### 1. 项目概述
+[线上地址](https://wuchuqi27.github.io/kanjitantei/)
 **漢字探偵 (Kanji Detective)** 是一款面向大学日语课堂的交互式教学辅助工具。
 本项目旨在帮助汉语母语学习者识别中日汉字之间细微而容易被忽视的字形差异，减少因“同源异体字”所造成的认知干扰。
 
