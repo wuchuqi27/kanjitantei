@@ -2,8 +2,9 @@
 
 Link → https://wuchuqi27.github.io/kanjitantei/
 
-
-灵感来源：https://iwskt.github.io/find_different_hiragana/
+本ツールは、先輩が制作された仮名判別ゲームから着想を得て開発したものです。  
+視覚的に類似した文字を判別するという発想を参考にし、中国語を母語とする日本語学習者が混同しやすい中日漢字の字形差に焦点を当てました。
+着想のきっかけとなった仮名判別ゲームはこちらです：https://iwskt.github.io/find_different_hiragana/
 > **中文** | [日本語](#漢字探偵-kanji-detective-1)
 
 ---
