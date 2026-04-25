@@ -1,5 +1,4 @@
 # 漢字探偵 (Kanji Detective)
-https://wuchuqi27.github.io/kanjitantei/
 
 [线上地址](https://wuchuqi27.github.io/kanjitantei/)
 
