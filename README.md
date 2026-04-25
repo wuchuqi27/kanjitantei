@@ -3,6 +3,7 @@
 Link → https://wuchuqi27.github.io/kanjitantei/
 
 
+灵感来源：https://iwskt.github.io/find_different_hiragana/
 > **中文** | [日本語](#漢字探偵-kanji-detective-1)
 
 ---
@@ -119,6 +120,5 @@ Link → https://wuchuqi27.github.io/kanjitantei/
 - **授業での活用例**：授業冒頭のウォームアップ、単元終了時の復習、競争形式の練習活動、または課後の自主学習として活用できます。
 
 
-灵感来源：https://iwskt.github.io/find_different_hiragana/
 特别鸣谢：SGL, QZH, AIのみなさま
 2026年4月24日＠TOKYO, KUNITACHI
