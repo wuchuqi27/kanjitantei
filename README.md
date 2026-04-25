@@ -62,7 +62,7 @@
 > [**中文**](#漢字探偵-kanji-detective) | 日本語
 
 ---
-https://wuchuqi27.github.io/kanjitantei/
+[入口](https://wuchuqi27.github.io/kanjitantei/)
 ## 中国語を母語とする日本語学習者のための中日漢字字形弁別支援システム
 
 ### 1. プロジェクト概要
